@@ -22,33 +22,43 @@ def init_node_weight(G):
 
     nx.set_node_attributes(G, T_weights, 'T_weight')
 
-def draw_path_in_graph(G,colored_paths):
+def draw_path_in_graph(G,colored_paths,ingress,egress):
     row = 3
     col = (len(colored_paths)-1) //2 +1
     fig, all_axes = plt.subplots(row,col)
     ax = all_axes.flat
     
+    _node_size = 400
     """
     Drawing reference 
     """
     # T 
+    T_weight = nx.get_node_attributes(G, "T_weight")
+    node_labels = T_weight
+    for ti in T_weight:
+        node_labels[ti] = f't: {T_weight[ti]:.2f}'
+
     pos = nx.spectral_layout(G)
-    nx.draw_networkx_nodes(G, pos, node_size=200, ax=ax[0]) # nodes
-    nx.draw_networkx_labels(G, pos, font_size=10, font_family="sans-serif", ax=ax[0]) # node labels
+    nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax[0]) # nodes
+    nx.draw_networkx_nodes(G, pos, nodelist= [ingress], node_size=_node_size, ax=ax[0],node_color="black") # ingress
+    nx.draw_networkx_nodes(G, pos, nodelist= [egress], node_size=_node_size, ax=ax[0],node_color="black") # egress
+    nx.draw_networkx_labels(G, pos, font_size=10, font_family="sans-serif", ax=ax[0], labels=node_labels) # node labels
 
     e_all = [(u, v) for (u, v) in G.edges()]
     nx.draw_networkx_edges(G, pos, edgelist=e_all, width=2, ax=ax[0]) # edges
 
-    T_weight = nx.get_edge_attributes(G, "T_weight")
-    edge_labels = T_weight
+    T_weight = nx.get_node_attributes(G, "T_weight")
+    node_labels = T_weight
     for ti in T_weight:
-        edge_labels[ti] = f't: {T_weight[ti]:.2f}'
+        node_labels[ti] = f't: {T_weight[ti]:.2f}'
 
-    nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=10,  ax=ax[0])# edge weight labels
+    #nx.draw_networkx_node_labels(G, pos, node_labels, font_size=10,  ax=ax[0])# edge weight labels
     ax[0].title.set_text('T_weight')
     # I
     pos = nx.spectral_layout(G)
-    nx.draw_networkx_nodes(G, pos, node_size=200, ax=ax[1]) # nodes
+    nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax[1]) # nodes
+    nx.draw_networkx_nodes(G, pos, nodelist= [ingress], node_size=_node_size, ax=ax[1],node_color="black") # ingress
+    nx.draw_networkx_nodes(G, pos, nodelist= [egress], node_size=_node_size, ax=ax[1],node_color="black") # egress
     nx.draw_networkx_labels(G, pos, font_size=10, font_family="sans-serif", ax=ax[1]) # node labels
 
     e_all = [(u, v) for (u, v) in G.edges()]
@@ -60,7 +70,7 @@ def draw_path_in_graph(G,colored_paths):
         edge_labels[ti] = f'i: {I_weight[ti]:.2f}'
 
     nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=10,  ax=ax[1])# edge weight labels
-    ax[1].title.set_text('N_weight')
+    ax[1].title.set_text('I_weight')
 
 
 
@@ -73,12 +83,14 @@ def draw_path_in_graph(G,colored_paths):
         key = list(colored_paths.keys())[i_colored_paths]
 
         pos = nx.spectral_layout(G)
-        nx.draw_networkx_nodes(G, pos, node_size=200, ax=ax[i_colored_paths+row-1]) # nodes
-        nx.draw_networkx_labels(G, pos, font_size=5, font_family="sans-serif", ax=ax[i_colored_paths+row-1]) # node labels
+        nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax[i_colored_paths+row-1]) # nodes
+        nx.draw_networkx_nodes(G, pos, nodelist= [ingress], node_size=_node_size, ax=ax[i_colored_paths+row-1],node_color="black") # ingress
+        nx.draw_networkx_nodes(G, pos, nodelist= [egress], node_size=_node_size, ax=ax[i_colored_paths+row-1],node_color="black") # egress
+        nx.draw_networkx_labels(G, pos, font_size=10, font_family="sans-serif", ax=ax[i_colored_paths+row-1]) # node labels
 
         # Draw the graph using plt
         e_all = [(u, v) for (u, v) in G.edges()]
-        nx.draw_networkx_edges(G, pos, edgelist=e_all, width=2, ax=ax[i_colored_paths+row-1],alpha=1, arrows=False) # edges
+        #nx.draw_networkx_edges(G, pos, edgelist=e_all, width=2, ax=ax[i_colored_paths+row-1],alpha=1, arrows=False) # edges
 
         if(len(value)>0):
             e_colored = [(colored_paths[key][0][i-1],colored_paths[key][0][i]) for i in range(1,len(colored_paths[key][0]))]
@@ -97,7 +109,9 @@ def draw_path_in_graph(G,colored_paths):
         key = list(colored_paths.keys())[i_colored_paths]
 
         pos = nx.spectral_layout(G)
-        nx.draw_networkx_nodes(G, pos, node_size=200, ax=ax[len(colored_paths)+row-1]) # nodes
+        nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax[len(colored_paths)+row-1]) # nodes
+        nx.draw_networkx_nodes(G, pos, nodelist= [ingress], node_size=_node_size, ax=ax[len(colored_paths)+row-1],node_color="black") # ingress
+        nx.draw_networkx_nodes(G, pos, nodelist= [egress], node_size=_node_size, ax=ax[len(colored_paths)+row-1],node_color="black") # egress
         nx.draw_networkx_labels(G, pos, font_size=5, font_family="sans-serif", ax=ax[len(colored_paths)+row-1]) # node labels
 
         # Draw the graph using plt

@@ -33,4 +33,4 @@ for i in range(0,len(colors)):
     refined_paths = refine.apply_constrain_accumlate(G,paths,constrain)
     colored_paths[colors[i]] = refined_paths
 
-utility.draw_path_in_graph(G,colored_paths)
+utility.draw_path_in_graph(G,colored_paths,ingress,egress)
