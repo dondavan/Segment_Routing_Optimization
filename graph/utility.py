@@ -3,24 +3,101 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Initialize Graph Edge Parameter
-def init_edge_weight(G):
-    I_weights = {}
+def init_edge_weight(G, edge_attributes, policy):
+    
+    for attribute in edge_attributes:
+        weights = {}
 
-    for edge in G.edges():
-        I_weight = np.random.rand()
-        I_weights[edge] = I_weight
-
-    nx.set_edge_attributes(G, I_weights, 'I_weight')
+        for edge in G.edges():
+            weight = np.random.choice(policy[attribute])
+            weights[edge] = weight
+        
+        print(weights)
+        nx.set_edge_attributes(G, weights, attribute)
 
 # Initialize Graph Node Parameter
-def init_node_weight(G):
-    T_weights = {}
+def init_node_weight(G, node_attributes, policy):
+    
+    for attribute in node_attributes:
+        weights = {}
 
-    for node in G.nodes():
-        T_weight = np.random.rand() 
-        T_weights[node] = T_weight
+        for node in G.nodes():
+            weight = np.random.choice(policy[attribute])
+            weights[node] = weight
 
-    nx.set_node_attributes(G, T_weights, 'T_weight')
+        nx.set_node_attributes(G, weights, attribute)
+
+
+def draw_graph(G, node_attributes, edge_attributes, ingress, egress):
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    _node_size = 400
+
+    # Use one fixed layout
+    pos = nx.spectral_layout(G, center = (4,4))
+
+    # --- Draw nodes and edges ---
+    nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax)
+    nx.draw_networkx_edges(G, pos, width=2, ax=ax)
+
+    # ================================================================
+    # Draw node attributes (stacked under nodes)
+    # ================================================================
+    for idx, attr in enumerate(node_attributes):
+        node_attribute = nx.get_node_attributes(G, attr)
+
+        # vertical offset so labels don't overlap
+        offset = (idx + 1) * 0.03
+        label_pos = {n: (x, y + offset) for n, (x, y) in pos.items()}
+
+        node_labels = {n: f"{attr}: {v}" for n, v in node_attribute.items()}
+
+        nx.draw_networkx_labels(
+            G,
+            label_pos,
+            labels=node_labels,
+            font_size=10,
+            font_family="sans-serif",
+            ax=ax
+        )
+
+    # Highlight ingress & egress nodes
+    nx.draw_networkx_nodes(
+        G, pos, nodelist=[ingress, egress], 
+        node_size=_node_size, ax=ax, node_color="black"
+    )
+
+    # ================================================================
+    # Draw edge attributes (stacked on edges)
+    # ================================================================
+    for idx, attr in enumerate(edge_attributes):
+        edge_attr = nx.get_edge_attributes(G, attr)
+
+        # Keep only entries for edges that actually exist in G
+        edge_attr = {(u, v): val for (u, v), val in edge_attr.items() if G.has_edge(u, v)}
+
+        # vertical offset for edge labels to avoid overlapping each other
+        offset = (idx + 1) * 0.03
+        label_pos = {n: (x, y + offset) for n, (x, y) in pos.items()}
+
+        edge_labels = {(u, v): f"{attr}: {val}" for (u, v), val in edge_attr.items()}
+        nx.draw_networkx_edge_labels(
+            G,
+            label_pos,
+            edge_labels=edge_labels,
+            font_size=9,
+            font_color="blue",
+            ax=ax
+        )
+
+    # ================================================================
+    ax.set_title("Node and Edge Attributes")
+    ax.margins(0.1)
+    plt.tight_layout()
+    plt.show()
+
+
+
 
 def draw_path_in_graph(G,colored_paths,ingress,egress):
     row = 3
@@ -54,6 +131,7 @@ def draw_path_in_graph(G,colored_paths,ingress,egress):
 
     #nx.draw_networkx_node_labels(G, pos, node_labels, font_size=10,  ax=ax[0])# edge weight labels
     ax[0].title.set_text('T_weight')
+    
     # I
     pos = nx.spectral_layout(G)
     nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax[1]) # nodes
@@ -103,7 +181,6 @@ def draw_path_in_graph(G,colored_paths,ingress,egress):
     """
     Drawing combined path
     """
-    print(colored_paths)
     for i_colored_paths in range(0,len(colored_paths)):
         value = list(colored_paths.items())[i_colored_paths][1]
         key = list(colored_paths.keys())[i_colored_paths]
