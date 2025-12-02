@@ -1,15 +1,18 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from enum import Enum
+import os
+from datetime import datetime
 
 from optimizer import backtrack,refine
+from optimizer.simulated_annealing import SimulatedAnnealing
 from graph import grid,utility
 
 
 # Hyper Parameters
-dim=(10, 10)          # Graph Dimension, example 5*5 2d graph
+dim=(15, 15)          # Graph Dimension, example 5*5 2d graph
 ingress=(0,0)       # Ingress node, (x,y)
-egress=(9,9)        # Egress node, (x,y)
+egress=(14,14)        # Egress node, (x,y)
 
 # Constrain
 colors = ['red','blue','yellow']
@@ -23,35 +26,49 @@ EDGE_ATTRIBUTES = ['Latency', 'Bandwidth', 'HopCount']
 
 # Optimization Objectives
 ATTRIBUTE_VALUES = Enum('ATTRIBUTE_VALUES', [('VL', 1), ('L', 2), ('M', 3), ('H', 4), ('VH', 5)])
+
 POLICY = {
-    'Integrity':['M','H','VH'],
-    'Bandwidth': ['M','H','VH'],
-    'Confidentiality':['VH'],
-    'HopCount':['VL','L','M','H','VH'],
-    'Latency':['L','M','H','VH'],
+    'Integrity':[ATTRIBUTE_VALUES.M, ATTRIBUTE_VALUES.H, ATTRIBUTE_VALUES.VH],
+    'Bandwidth': [ATTRIBUTE_VALUES.M, ATTRIBUTE_VALUES.H, ATTRIBUTE_VALUES.VH],
+    'Confidentiality':[ATTRIBUTE_VALUES.VH],
+    'HopCount':[ATTRIBUTE_VALUES.VL, ATTRIBUTE_VALUES.L, ATTRIBUTE_VALUES.M, ATTRIBUTE_VALUES.H, ATTRIBUTE_VALUES.VH],
+    'Latency':[ATTRIBUTE_VALUES.L, ATTRIBUTE_VALUES.M, ATTRIBUTE_VALUES.H, ATTRIBUTE_VALUES.VH],
     
-    'Resilience':['VL','L','M','H','VH'],
+    'Resilience':[ATTRIBUTE_VALUES.VL, ATTRIBUTE_VALUES.L, ATTRIBUTE_VALUES.M, ATTRIBUTE_VALUES.H, ATTRIBUTE_VALUES.VH],
 }
 
-# Load Graph and Init Egde Weight
-G = grid.get_graph(dim=dim,ingress=ingress,egress=egress)
+# Load Graph and get complex ingress/egress pairs
+G, ingress_egress_pairs = grid.get_graph(dim=dim)
 
-utility.init_edge_weight(G,EDGE_ATTRIBUTES, POLICY)
-utility.init_node_weight(G,NODE_ATTRIBUTES, POLICY)
+print(ingress_egress_pairs)
 
+utility.init_edge_weight(G, EDGE_ATTRIBUTES, POLICY)
+utility.init_node_weight(G, NODE_ATTRIBUTES, POLICY)
 
-# Optimization
-#paths = backtrack.get_path(G,ingress,egress)
+# Create a subdirectory in 'plots' with current timestamp
+run_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+plot_dir = os.path.join('plots', run_timestamp)
+os.makedirs(plot_dir, exist_ok=True)
 
-"""
-colored_paths = {}
-# Constrain is >= at T,I at the same time
-for i in range(0,len(colors)):
-    constrain = {colors[i]: {"T_weight":T[i], "I_weight":I[i]}}  
-    refined_paths = refine.apply_constrain_accumlate(G,paths,constrain)
-    colored_paths[colors[i]] = refined_paths
+for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
+    utility.draw_graph(G, NODE_ATTRIBUTES, EDGE_ATTRIBUTES, ingress, egress, save_dir=plot_dir)
 
-utility.draw_path_in_graph(G,colored_paths,ingress,egress)
-"""
-
-utility.draw_graph(G,NODE_ATTRIBUTES, EDGE_ATTRIBUTES, ingress,egress)
+# Run Simulated Annealing (Multi-objective) for each pair
+for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
+    print(f"\nPair {idx+1}: Ingress={ingress}, Egress={egress}")
+    sa = SimulatedAnnealing(ATTRIBUTE_VALUES)
+    pareto_front, is_pareto = sa.solve_simulated_annealing(G, ingress, egress, NODE_ATTRIBUTES, EDGE_ATTRIBUTES, save_dir=plot_dir)
+    if is_pareto:
+        print("Pareto-optimal paths found by Simulated Annealing:")
+    else:
+        print("No Pareto front found, showing best path found by Simulated Annealing:")
+    for pidx, (path, objectives) in enumerate(pareto_front):
+        print(f"  Path {pidx+1}: {path}")
+        print(f"    Objectives: {dict(zip(EDGE_ATTRIBUTES + NODE_ATTRIBUTES, objectives))}")
+    if pareto_front:
+        color_map = {}
+        colors = ['red', 'blue', 'yellow', 'green', 'purple', 'orange', 'cyan', 'magenta']
+        for pidx, (path, _) in enumerate(pareto_front):
+            color = colors[pidx % len(colors)]
+            color_map.setdefault(color, []).append(path)
+        utility.draw_path_in_graph(G, color_map, ingress, egress, save_dir=plot_dir)

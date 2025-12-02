@@ -1,5 +1,8 @@
 import networkx as nx
 import numpy as np
+import os
+import hashlib
+import json
 import matplotlib.pyplot as plt
 
 # Initialize Graph Edge Parameter
@@ -12,7 +15,6 @@ def init_edge_weight(G, edge_attributes, policy):
             weight = np.random.choice(policy[attribute])
             weights[edge] = weight
         
-        print(weights)
         nx.set_edge_attributes(G, weights, attribute)
 
 # Initialize Graph Node Parameter
@@ -28,17 +30,16 @@ def init_node_weight(G, node_attributes, policy):
         nx.set_node_attributes(G, weights, attribute)
 
 
-def draw_graph(G, node_attributes, edge_attributes, ingress, egress):
-
-    fig, ax = plt.subplots(figsize=(8, 8))
-    _node_size = 400
+def draw_graph(G, node_attributes, edge_attributes, ingress, egress, save_dir=None):
+    fig, ax = plt.subplots(figsize=(14, 12))  
+    _node_size = 400  # Smaller nodes
 
     # Use one fixed layout
-    pos = nx.spectral_layout(G, center = (4,4))
+    pos = nx.spectral_layout(G, scale=10)  # Spread out more
 
     # --- Draw nodes and edges ---
     nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax)
-    nx.draw_networkx_edges(G, pos, width=2, ax=ax)
+    nx.draw_networkx_edges(G, pos, width=4, edge_color='black', ax=ax)  # Thicker, more visible edges
 
     # ================================================================
     # Draw node attributes (stacked under nodes)
@@ -47,25 +48,27 @@ def draw_graph(G, node_attributes, edge_attributes, ingress, egress):
         node_attribute = nx.get_node_attributes(G, attr)
 
         # vertical offset so labels don't overlap
-        offset = (idx + 1) * 0.03
+        offset = (idx + 1.2) * 0.25  # More vertical offset
         label_pos = {n: (x, y + offset) for n, (x, y) in pos.items()}
 
-        node_labels = {n: f"{attr}: {v}" for n, v in node_attribute.items()}
+        node_labels = {(u, v): f"{attr[0]}: {val.name}" for (u, v), val in node_attribute.items()}
+        
 
         nx.draw_networkx_labels(
             G,
             label_pos,
             labels=node_labels,
-            font_size=10,
+            font_size=8,  # Smaller font
             font_family="sans-serif",
             ax=ax
         )
 
     # Highlight ingress & egress nodes
-    nx.draw_networkx_nodes(
-        G, pos, nodelist=[ingress, egress], 
-        node_size=_node_size, ax=ax, node_color="black"
-    )
+    if ingress is not None and egress is not None:
+        nx.draw_networkx_nodes(
+            G, pos, nodelist=[ingress, egress], 
+            node_size=_node_size, ax=ax, node_color="black"
+        )
 
     # ================================================================
     # Draw edge attributes (stacked on edges)
@@ -77,132 +80,97 @@ def draw_graph(G, node_attributes, edge_attributes, ingress, egress):
         edge_attr = {(u, v): val for (u, v), val in edge_attr.items() if G.has_edge(u, v)}
 
         # vertical offset for edge labels to avoid overlapping each other
-        offset = (idx + 1) * 0.03
+        offset = (idx + 1.2) * 0.25  # More vertical offset
         label_pos = {n: (x, y + offset) for n, (x, y) in pos.items()}
 
-        edge_labels = {(u, v): f"{attr}: {val}" for (u, v), val in edge_attr.items()}
+        edge_labels = {(u, v): f"{attr[0]}: {val.name}" for (u, v), val in edge_attr.items()}
         nx.draw_networkx_edge_labels(
             G,
             label_pos,
             edge_labels=edge_labels,
-            font_size=9,
+            font_size=7,  # Smaller font
             font_color="blue",
             ax=ax
         )
 
     # ================================================================
-    ax.set_title("Node and Edge Attributes")
+    ax.set_title("Node and Edge Attributes", fontsize=18)
     ax.margins(0.1)
     plt.tight_layout()
-    plt.show()
+    if save_dir is not None:
+        os.makedirs(save_dir, exist_ok=True)
+        if ingress is not None and egress is not None:
+            filename = f"network_graph_{str(ingress).replace(' ', '')}_{str(egress).replace(' ', '')}.png"
+        else:
+            filename = "network_graph.png"
+        plt.savefig(os.path.join(save_dir, filename), format='png')
+        plt.close()
+    else:
+        plt.show()
 
 
 
 
-def draw_path_in_graph(G,colored_paths,ingress,egress):
-    row = 3
-    col = (len(colored_paths)-1) //2 +1
-    fig, all_axes = plt.subplots(row,col)
-    ax = all_axes.flat
-    
-    _node_size = 400
+def draw_path_in_graph(G, colored_paths, ingress, egress, save_dir=None):
     """
-    Drawing reference 
+    Draw the original graph and overlay colored paths on top of it.
+    colored_paths: dict of {color: [path]}
+    save_dir: directory to save the plot (if provided)
     """
-    # T 
-    T_weight = nx.get_node_attributes(G, "T_weight")
-    node_labels = T_weight
-    for ti in T_weight:
-        node_labels[ti] = f't: {T_weight[ti]:.2f}'
+    plt.figure(figsize=(14, 12))  # Larger figure for readability
+    pos = nx.spectral_layout(G, center=(4, 4), scale=10)
+    _node_size = 900
 
-    pos = nx.spectral_layout(G)
-    nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax[0]) # nodes
-    nx.draw_networkx_nodes(G, pos, nodelist= [ingress], node_size=_node_size, ax=ax[0],node_color="black") # ingress
-    nx.draw_networkx_nodes(G, pos, nodelist= [egress], node_size=_node_size, ax=ax[0],node_color="black") # egress
-    nx.draw_networkx_labels(G, pos, font_size=10, font_family="sans-serif", ax=ax[0], labels=node_labels) # node labels
+    # Draw base graph
+    nx.draw_networkx_nodes(G, pos, node_size=_node_size, node_color='lightgray')
+    nx.draw_networkx_edges(G, pos, width=2.5, edge_color='gray')
+    nx.draw_networkx_labels(G, pos, font_size=8, font_family="sans-serif")  # Smaller font
 
-    e_all = [(u, v) for (u, v) in G.edges()]
-    nx.draw_networkx_edges(G, pos, edgelist=e_all, width=2, ax=ax[0]) # edges
+    # Overlay colored paths
+    for color, paths in colored_paths.items():
+        for path in paths:
+            if len(path) > 1:
+                edges = [(path[i-1], path[i]) for i in range(1, len(path))]
+                nx.draw_networkx_edges(G, pos, edgelist=edges, width=2.5, edge_color=color, alpha=0.85)
+                nx.draw_networkx_nodes(G, pos, nodelist=path, node_size=_node_size//1.7, node_color=color, alpha=0.5)
 
-    T_weight = nx.get_node_attributes(G, "T_weight")
-    node_labels = T_weight
-    for ti in T_weight:
-        node_labels[ti] = f't: {T_weight[ti]:.2f}'
+    # Highlight ingress & egress
+    nx.draw_networkx_nodes(G, pos, nodelist=[ingress], node_size=_node_size, node_color="green")
+    nx.draw_networkx_nodes(G, pos, nodelist=[egress], node_size=_node_size, node_color="red")
 
-    #nx.draw_networkx_node_labels(G, pos, node_labels, font_size=10,  ax=ax[0])# edge weight labels
-    ax[0].title.set_text('T_weight')
-    
-    # I
-    pos = nx.spectral_layout(G)
-    nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax[1]) # nodes
-    nx.draw_networkx_nodes(G, pos, nodelist= [ingress], node_size=_node_size, ax=ax[1],node_color="black") # ingress
-    nx.draw_networkx_nodes(G, pos, nodelist= [egress], node_size=_node_size, ax=ax[1],node_color="black") # egress
-    nx.draw_networkx_labels(G, pos, font_size=10, font_family="sans-serif", ax=ax[1]) # node labels
+    plt.title("Graph with Colored Paths Overlay", fontsize=18)
+    plt.axis('off')
+    plt.tight_layout()
 
-    e_all = [(u, v) for (u, v) in G.edges()]
-    nx.draw_networkx_edges(G, pos, edgelist=e_all, width=2, ax=ax[1]) # edges
+    if save_dir is not None:
+        os.makedirs(save_dir, exist_ok=True)
+        if ingress is not None and egress is not None:
+            colored_paths_str = json.dumps(colored_paths, sort_keys=True)
+            hash_digest = hashlib.md5(colored_paths_str.encode()).hexdigest()
+            filename = f"graph_with_colored_paths_{str(ingress).replace(' ', '')}_{str(egress).replace(' ', '')}_{hash_digest}.png"
+        else:
+            # fallback to hash if no ingress/egress
+            colored_paths_str = json.dumps(colored_paths, sort_keys=True)
+            hash_digest = hashlib.md5(colored_paths_str.encode()).hexdigest()
+            filename = f"graph_with_colored_paths_{hash_digest}.png"
+        plt.savefig(os.path.join(save_dir, filename), format='png')
+        plt.close()
+    else:
+        plt.show()
 
-    I_weight = nx.get_edge_attributes(G, "I_weight")
-    edge_labels = I_weight
-    for ti in I_weight:
-        edge_labels[ti] = f'i: {I_weight[ti]:.2f}'
-
-    nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=10,  ax=ax[1])# edge weight labels
-    ax[1].title.set_text('I_weight')
-
-
-
-
-    """
-    Drawing colored path
-    """
-    for i_colored_paths in range(0,len(colored_paths)):
-        value = list(colored_paths.items())[i_colored_paths][1]
-        key = list(colored_paths.keys())[i_colored_paths]
-
-        pos = nx.spectral_layout(G)
-        nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax[i_colored_paths+row-1]) # nodes
-        nx.draw_networkx_nodes(G, pos, nodelist= [ingress], node_size=_node_size, ax=ax[i_colored_paths+row-1],node_color="black") # ingress
-        nx.draw_networkx_nodes(G, pos, nodelist= [egress], node_size=_node_size, ax=ax[i_colored_paths+row-1],node_color="black") # egress
-        nx.draw_networkx_labels(G, pos, font_size=10, font_family="sans-serif", ax=ax[i_colored_paths+row-1]) # node labels
-
-        # Draw the graph using plt
-        e_all = [(u, v) for (u, v) in G.edges()]
-        #nx.draw_networkx_edges(G, pos, edgelist=e_all, width=2, ax=ax[i_colored_paths+row-1],alpha=1, arrows=False) # edges
-
-        if(len(value)>0):
-            e_colored = [(colored_paths[key][0][i-1],colored_paths[key][0][i]) for i in range(1,len(colored_paths[key][0]))]
-            nx.draw_networkx_edges(G, pos, edgelist=e_colored, width=2, alpha=1, edge_color=key, ax=ax[i_colored_paths+row-1]) # colored 
-        ax[i_colored_paths+row-1].title.set_text(key)
-        # edge weight labels
-        #edge_labels = nx.get_edge_attributes(G, "T_weight")
-        #x.draw_networkx_edge_labels(G, pos, edge_labels)
-
-    """
-    Drawing combined path
-    """
-    for i_colored_paths in range(0,len(colored_paths)):
-        value = list(colored_paths.items())[i_colored_paths][1]
-        key = list(colored_paths.keys())[i_colored_paths]
-
-        pos = nx.spectral_layout(G)
-        nx.draw_networkx_nodes(G, pos, node_size=_node_size, ax=ax[len(colored_paths)+row-1]) # nodes
-        nx.draw_networkx_nodes(G, pos, nodelist= [ingress], node_size=_node_size, ax=ax[len(colored_paths)+row-1],node_color="black") # ingress
-        nx.draw_networkx_nodes(G, pos, nodelist= [egress], node_size=_node_size, ax=ax[len(colored_paths)+row-1],node_color="black") # egress
-        nx.draw_networkx_labels(G, pos, font_size=5, font_family="sans-serif", ax=ax[len(colored_paths)+row-1]) # node labels
-
-        # Draw the graph using plt
-        e_all = [(u, v) for (u, v) in G.edges()]
-        #nx.draw_networkx_edges(G, pos, edgelist=e_all, width=2, ax=ax[len(colored_paths)+row-1]) # edges
-
-        rad = 0.1
-        if(len(value)>0):
-            e_colored = [(colored_paths[key][0][i-1],colored_paths[key][0][i]) for i in range(1,len(colored_paths[key][0]))]
-            nx.draw_networkx_edges(G, pos, edgelist=e_colored, width=2, alpha=1, edge_color=key, ax=ax[len(colored_paths)+row-1], 
-                       connectionstyle=f'arc3, rad = {rad*i_colored_paths}') # colored 
-        ax[len(colored_paths)+row-1].title.set_text("colored")
-
-    for a in ax:
-        a.margins(0.10)
-    fig.tight_layout()
-    plt.show()
+def plot_sa_objective_history(history, edge_attributes, node_attributes, save_dir, pair_name=None):
+    import matplotlib.pyplot as plt
+    import os
+    os.makedirs(save_dir, exist_ok=True)
+    history_arr = list(zip(*history))
+    plt.figure(figsize=(10, 6))
+    for i, obj_name in enumerate(edge_attributes + node_attributes):
+        plt.plot(history_arr[i], label=obj_name)
+    plt.xlabel('Iteration')
+    plt.ylabel('Objective Value')
+    plt.title('Simulated Annealing Objective Trajectory' + (f' ({pair_name})' if pair_name else ''))
+    plt.legend()
+    fname = f'sa_objective_trajectory{f"_{pair_name}" if pair_name else ""}.png'
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, fname))
+    plt.close()
