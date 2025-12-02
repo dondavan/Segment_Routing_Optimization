@@ -9,10 +9,13 @@ from optimizer.simulated_annealing import SimulatedAnnealing
 from graph import grid,utility
 
 
-# Hyper Parameters
+# Graph Hyper Parameters
 dim=(15, 15)          # Graph Dimension, example 5*5 2d graph
 ingress=(0,0)       # Ingress node, (x,y)
 egress=(14,14)        # Egress node, (x,y)
+
+# SA Hyper Parameters
+cooling_rate=0.995
 
 # Constrain
 colors = ['red','blue','yellow']
@@ -50,14 +53,11 @@ run_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 plot_dir = os.path.join('plots', run_timestamp)
 os.makedirs(plot_dir, exist_ok=True)
 
-for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
-    utility.draw_graph(G, NODE_ATTRIBUTES, EDGE_ATTRIBUTES, ingress, egress, save_dir=plot_dir)
-
 # Run Simulated Annealing (Multi-objective) for each pair
 for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
     print(f"\nPair {idx+1}: Ingress={ingress}, Egress={egress}")
     sa = SimulatedAnnealing(ATTRIBUTE_VALUES)
-    pareto_front, is_pareto = sa.solve_simulated_annealing(G, ingress, egress, NODE_ATTRIBUTES, EDGE_ATTRIBUTES, save_dir=plot_dir)
+    pareto_front, is_pareto = sa.solve_simulated_annealing(G, ingress, egress, NODE_ATTRIBUTES, EDGE_ATTRIBUTES, cooling_rate=cooling_rate, save_dir=plot_dir)
     if is_pareto:
         print("Pareto-optimal paths found by Simulated Annealing:")
     else:
@@ -72,3 +72,6 @@ for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
             color = colors[pidx % len(colors)]
             color_map.setdefault(color, []).append(path)
         utility.draw_path_in_graph(G, color_map, ingress, egress, save_dir=plot_dir)
+
+for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
+    utility.draw_graph(G, NODE_ATTRIBUTES, EDGE_ATTRIBUTES, ingress, egress, save_dir=plot_dir)

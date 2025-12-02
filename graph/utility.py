@@ -159,8 +159,6 @@ def draw_path_in_graph(G, colored_paths, ingress, egress, save_dir=None):
         plt.show()
 
 def plot_sa_objective_history(history, edge_attributes, node_attributes, save_dir, pair_name=None):
-    import matplotlib.pyplot as plt
-    import os
     os.makedirs(save_dir, exist_ok=True)
     history_arr = list(zip(*history))
     plt.figure(figsize=(10, 6))
