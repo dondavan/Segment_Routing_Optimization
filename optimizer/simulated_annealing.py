@@ -124,6 +124,7 @@ class SimulatedAnnealing:
         return all(x <= y for x, y in zip(a, b)) and any(x < y for x, y in zip(a, b))
 
     def update_pareto_front(self, front, candidate):
+        print(front)
         non_dominated = []
         candidate_dominated = False
         for p, obj in front:

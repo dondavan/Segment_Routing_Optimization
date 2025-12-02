@@ -15,7 +15,7 @@ ingress=(0,0)       # Ingress node, (x,y)
 egress=(14,14)        # Egress node, (x,y)
 
 # SA Hyper Parameters
-cooling_rate=0.995
+cooling_rate=0.99
 
 # Constrain
 colors = ['red','blue','yellow']
@@ -65,13 +65,13 @@ for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
     for pidx, (path, objectives) in enumerate(pareto_front):
         print(f"  Path {pidx+1}: {path}")
         print(f"    Objectives: {dict(zip(EDGE_ATTRIBUTES + NODE_ATTRIBUTES, objectives))}")
-    if pareto_front:
-        color_map = {}
-        colors = ['red', 'blue', 'yellow', 'green', 'purple', 'orange', 'cyan', 'magenta']
-        for pidx, (path, _) in enumerate(pareto_front):
-            color = colors[pidx % len(colors)]
-            color_map.setdefault(color, []).append(path)
-        utility.draw_path_in_graph(G, color_map, ingress, egress, save_dir=plot_dir)
+
+    color_map = {}
+    colors = ['red', 'blue', 'yellow', 'green', 'purple', 'orange', 'cyan', 'magenta']
+    for pidx, (path, _) in enumerate(pareto_front):
+        color = colors[pidx % len(colors)]
+        color_map.setdefault(color, []).append(path)
+    utility.draw_path_in_graph(G, color_map, ingress, egress, save_dir=plot_dir)
 
 for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
     utility.draw_graph(G, NODE_ATTRIBUTES, EDGE_ATTRIBUTES, ingress, egress, save_dir=plot_dir)
