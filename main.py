@@ -57,7 +57,7 @@ os.makedirs(plot_dir, exist_ok=True)
 for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
     print(f"\nPair {idx+1}: Ingress={ingress}, Egress={egress}")
     sa = SimulatedAnnealing(ATTRIBUTE_VALUES)
-    pareto_front, is_pareto = sa.solve_simulated_annealing(G, ingress, egress, NODE_ATTRIBUTES, EDGE_ATTRIBUTES, cooling_rate=cooling_rate, save_dir=plot_dir)
+    pareto_front, is_pareto, solutions = sa.solve_simulated_annealing(G, ingress, egress, NODE_ATTRIBUTES, EDGE_ATTRIBUTES, cooling_rate=cooling_rate, save_dir=None)
     if is_pareto:
         print("Pareto-optimal paths found by Simulated Annealing:")
     else:
@@ -72,6 +72,11 @@ for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
         color = colors[pidx % len(colors)]
         color_map.setdefault(color, []).append(path)
     utility.draw_path_in_graph(G, color_map, ingress, egress, save_dir=plot_dir)
+    # Also plot Pareto front overlay with SA accepted-solution history
+    try:
+        utility.plot_pareto_and_history(G, pareto_front, solutions, plot_dir, pair_name=f"{ingress}_{egress}")
+    except Exception:
+        pass
 
 for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
     utility.draw_graph(G, NODE_ATTRIBUTES, EDGE_ATTRIBUTES, ingress, egress, save_dir=plot_dir)

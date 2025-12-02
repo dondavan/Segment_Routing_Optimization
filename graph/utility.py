@@ -159,16 +159,114 @@ def draw_path_in_graph(G, colored_paths, ingress, egress, save_dir=None):
         plt.show()
 
 def plot_sa_objective_history(history, edge_attributes, node_attributes, save_dir, pair_name=None):
+    """Plot accepted SA solutions as a scatter: x=HopCount (minimize), y=Integrity (maximize).
+    Highlight an approximate Pareto front computed from the points.
+    - history: list of [hopcount, integrity] pairs (integrity positive)
+    - edge_attributes/node_attributes kept for compatibility but not used directly here
+    """
     os.makedirs(save_dir, exist_ok=True)
-    history_arr = list(zip(*history))
-    plt.figure(figsize=(10, 6))
-    for i, obj_name in enumerate(edge_attributes + node_attributes):
-        plt.plot(history_arr[i], label=obj_name)
-    plt.xlabel('Iteration')
-    plt.ylabel('Objective Value')
-    plt.title('Simulated Annealing Objective Trajectory' + (f' ({pair_name})' if pair_name else ''))
+    if not history:
+        return
+    # history may be list of pairs or list of lists; normalize
+    xs = [h[0] for h in history]
+    ys = [h[1] for h in history]
+
+    plt.figure(figsize=(8, 6))
+    plt.scatter(xs, ys, c='tab:blue', alpha=0.6, label='accepted solutions')
+
+    # approximate nondominated (Pareto) points: no other point has <= hopcount and >= integrity with at least one strict
+    pareto = []
+    for i, (x, y) in enumerate(zip(xs, ys)):
+        dominated = False
+        for j, (x2, y2) in enumerate(zip(xs, ys)):
+            if j == i:
+                continue
+            if x2 <= x and y2 >= y and (x2 < x or y2 > y):
+                dominated = True
+                break
+        if not dominated:
+            pareto.append((x, y))
+
+    if pareto:
+        # make unique and sort by hopcount asc, integrity desc
+        pareto = sorted(set(pareto), key=lambda t: (t[0], -t[1]))
+        px, py = zip(*pareto)
+        plt.plot(px, py, '-o', color='crimson', label='approx. Pareto front')
+
+    plt.xlabel('HopCount (lower is better)')
+    plt.ylabel('Integrity (higher is better)')
+    plt.title('SA solutions: HopCount vs Integrity' + (f' ({pair_name})' if pair_name else ''))
+    plt.grid(alpha=0.3)
     plt.legend()
-    fname = f'sa_objective_trajectory{f"_{pair_name}" if pair_name else ""}.png'
+    fname = f'sa_objective_scatter{f"_{pair_name}" if pair_name else ""}.png'
     plt.tight_layout()
     plt.savefig(os.path.join(save_dir, fname))
+    plt.close()
+
+def plot_pareto_and_history(G, pareto_front, solutions, save_dir, pair_name=None):
+    """Plot accepted SA solutions (HopCount vs Integrity) and overlay the returned Pareto-front paths.
+
+    - G: networkx graph (used to compute hopcount/integrity for paths in pareto_front)
+    - pareto_front: list of (path, objectives) where path is list of nodes
+    - solutions: list of [hopcount, integrity] accepted during SA (chronological)
+    - save_dir: directory to save the plot
+    - pair_name: optional label to include in filename/title
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Prepare solution points
+    sol_x = [s[0] for s in solutions] if solutions else []
+    sol_y = [s[1] for s in solutions] if solutions else []
+
+    # Prepare pareto front points (compute hopcount & integrity from paths)
+    pf_points = []
+    for path, _ in (pareto_front or []):
+        # compute hopcount from edge attribute
+        hop = 0
+        for u, v in zip(path[:-1], path[1:]):
+            val = G[u][v].get('HopCount', 1)
+            if hasattr(val, 'value'):
+                val = val.value
+            hop += val
+        # compute integrity from node attribute (sum)
+        integrity = 0
+        for n in path:
+            val = G.nodes[n].get('Integrity', 0)
+            if hasattr(val, 'value'):
+                val = val.value
+            integrity += val
+        pf_points.append((hop, integrity))
+
+    # Sort Pareto points by hop ascending, integrity descending for nicer plotting
+    pf_points = sorted(set(pf_points), key=lambda t: (t[0], -t[1]))
+    pf_x = [p[0] for p in pf_points]
+    pf_y = [p[1] for p in pf_points]
+
+    plt.figure(figsize=(12, 9))
+
+    # plot history points and connect them to show trajectory (light gray)
+    if sol_x and sol_y:
+        plt.plot(sol_x, sol_y, '-o', color='lightgray', alpha=0.55, linewidth=1, markersize=6, label='SA trajectory')
+        # Make accepted solutions more visible by adding a subtle black edge and bringing them above the trajectory
+        plt.scatter(sol_x, sol_y, c='tab:blue', alpha=0.95, s=40, label='accepted solutions', edgecolors='black', linewidths=0.6, zorder=4)
+
+    # plot pareto front points emphasized
+    if pf_x and pf_y:
+        # thick connecting line for front
+        plt.plot(pf_x, pf_y, '-o', color='crimson', linewidth=2, markersize=14, alpha=0.95, label='returned Pareto front')
+        # large star markers with black edge
+        plt.scatter(pf_x, pf_y, c='crimson', marker='*', s=300, edgecolors='black', linewidths=0.8, zorder=5)
+        # annotate points with indices and small boxes
+        for i, (x, y) in enumerate(zip(pf_x, pf_y)):
+            plt.annotate(str(i+1), (x, y), textcoords="offset points", xytext=(8,6), fontsize=10, weight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7))
+
+    plt.xlabel('HopCount (lower is better)', fontsize=12)
+    plt.ylabel('Integrity (higher is better)', fontsize=12)
+    plt.title('Pareto front overlay with SA trajectory' + (f' ({pair_name})' if pair_name else ''), fontsize=14)
+    plt.grid(alpha=0.35)
+    plt.legend(loc='best', fontsize=11)
+
+    fname = f'pareto_with_history{f"_{pair_name}" if pair_name else ""}.png'
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, fname), dpi=200)
     plt.close()
