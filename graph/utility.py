@@ -4,6 +4,7 @@ import os
 import hashlib
 import json
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 # Initialize Graph Edge Parameter
 def init_edge_weight(G, edge_attributes, policy):
@@ -111,52 +112,148 @@ def draw_graph(G, node_attributes, edge_attributes, ingress, egress, save_dir=No
 
 
 
-def draw_path_in_graph(G, colored_paths, ingress, egress, save_dir=None):
+def draw_path_in_graph(G, all_paths, ingress, egress, save_dir=None, attribute_names=None):
     """
-    Draw the original graph and overlay colored paths on top of it.
-    colored_paths: dict of {color: [path]}
-    save_dir: directory to save the plot (if provided)
+    Draw each path on its own figure/image instead of overlaying all paths on a single graph.
+    - all_paths can be either:
+      * a dict mapping color->list_of_paths (legacy), or
+      * an iterable/list of paths (each path is a list of nodes), or
+      * an iterable/list of (path, objectives) tuples.
+    Each path will be drawn in its own figure and saved separately. Filenames include the
+    ingress/egress and a hash of the path for uniqueness. If attribute_names is provided,
+    the objectives will be shown in a caption below the plot.
     """
-    plt.figure(figsize=(14, 12))  # Larger figure for readability
+    # Normalize input into a list of (path, color, objectives) tuples. Color may be None.
+    path_color_obj = []
+    if isinstance(all_paths, dict):
+        # Legacy format: color -> [paths]
+        for color, paths in all_paths.items():
+            for path in paths:
+                path_color_obj.append((path, color, None))
+    else:
+        # all_paths may be list of paths or list of (path, objectives)
+        normalized = []
+        for item in list(all_paths):
+            if isinstance(item, (list, tuple)) and len(item) == 2 and not isinstance(item[0], (str, bytes)):
+                # treat as (path, objectives)
+                normalized.append(item)
+            else:
+                # treat item as a path with no objectives
+                normalized.append((item, None))
+
+        paths = [p for p, _ in normalized]
+        objs = [o for _, o in normalized]
+        n_paths = len(paths)
+        cmap = plt.get_cmap('berlin')
+        generated_colors = [mcolors.to_hex(cmap(i / max(1, n_paths - 1))) for i in range(n_paths)] if n_paths > 0 else []
+        for idx, (path, obj) in enumerate(normalized):
+            color = generated_colors[idx] if idx < len(generated_colors) else '#444444'
+            path_color_obj.append((path, color, obj))
+
+    # Layout computed once for consistency across per-path plots
     pos = nx.spectral_layout(G, center=(4, 4), scale=10)
     _node_size = 900
 
-    # Draw base graph
-    nx.draw_networkx_nodes(G, pos, node_size=_node_size, node_color='lightgray')
-    nx.draw_networkx_edges(G, pos, width=2.5, edge_color='gray')
-    nx.draw_networkx_labels(G, pos, font_size=8, font_family="sans-serif")  # Smaller font
+    for idx, (path, color, objectives) in enumerate(path_color_obj):
+        plt.figure(figsize=(14, 14))
+        # Draw base graph faintly
+        nx.draw_networkx_nodes(G, pos, node_size=_node_size, node_color='lightgray')
+        nx.draw_networkx_edges(G, pos, width=2.0, edge_color='lightgray')
+        nx.draw_networkx_labels(G, pos, font_size=8, font_family="sans-serif")
 
-    # Overlay colored paths
-    for color, paths in colored_paths.items():
-        for path in paths:
-            if len(path) > 1:
-                edges = [(path[i-1], path[i]) for i in range(1, len(path))]
-                nx.draw_networkx_edges(G, pos, edgelist=edges, width=2.5, edge_color=color, alpha=0.85)
-                nx.draw_networkx_nodes(G, pos, nodelist=path, node_size=_node_size//1.7, node_color=color, alpha=0.5)
-
-    # Highlight ingress & egress
-    nx.draw_networkx_nodes(G, pos, nodelist=[ingress], node_size=_node_size, node_color="green")
-    nx.draw_networkx_nodes(G, pos, nodelist=[egress], node_size=_node_size, node_color="red")
-
-    plt.title("Graph with Colored Paths Overlay", fontsize=18)
-    plt.axis('off')
-    plt.tight_layout()
-
-    if save_dir is not None:
-        os.makedirs(save_dir, exist_ok=True)
-        if ingress is not None and egress is not None:
-            colored_paths_str = json.dumps(colored_paths, sort_keys=True)
-            hash_digest = hashlib.md5(colored_paths_str.encode()).hexdigest()
-            filename = f"graph_with_colored_paths_{str(ingress).replace(' ', '')}_{str(egress).replace(' ', '')}_{hash_digest}.png"
+        # Skip empty or invalid paths
+        if not path or len(path) <= 1:
+            title = f"Path {idx+1}: empty or single node"
         else:
-            # fallback to hash if no ingress/egress
-            colored_paths_str = json.dumps(colored_paths, sort_keys=True)
-            hash_digest = hashlib.md5(colored_paths_str.encode()).hexdigest()
-            filename = f"graph_with_colored_paths_{hash_digest}.png"
-        plt.savefig(os.path.join(save_dir, filename), format='png')
-        plt.close()
-    else:
-        plt.show()
+            # Draw only the edges/nodes for this path
+            edges = [(path[i-1], path[i]) for i in range(1, len(path))]
+            # Ensure color is a valid matplotlib color (convert RGBA tuples to hex)
+            try:
+                draw_color = mcolors.to_hex(color) if not isinstance(color, tuple) or len(color) != 4 else mcolors.to_hex(color)
+            except Exception:
+                draw_color = str(color)
+            nx.draw_networkx_edges(G, pos, edgelist=edges, width=3.0, edge_color=[draw_color], alpha=0.95)
+            nx.draw_networkx_nodes(G, pos, nodelist=path, node_size=_node_size//1.7, node_color=[draw_color], alpha=0.7)
+            title = f"Path {idx+1} overlay"
+
+        # Highlight ingress & egress clearly on top
+        if ingress is not None:
+            nx.draw_networkx_nodes(G, pos, nodelist=[ingress], node_size=_node_size, node_color="green")
+        if egress is not None:
+            nx.draw_networkx_nodes(G, pos, nodelist=[egress], node_size=_node_size, node_color="red")
+
+        plt.title(f"Graph with Path {idx+1} Overlay ({ingress} → {egress})", fontsize=16)
+        plt.axis('off')
+
+        # If objectives provided and attribute_names given, render a small caption
+        if objectives is not None and attribute_names is not None:
+            try:
+                # pair up names and objective values; handle enums with .name or .value
+                pairs = []
+                for name, val in zip(attribute_names, objectives):
+                    if hasattr(val, 'name'):
+                        v = val.name
+                    elif hasattr(val, 'value'):
+                        v = val.value
+                    else:
+                        v = val
+                    pairs.append(f"{name}: {v}")
+                caption = " | ".join(pairs)
+                plt.gcf().text(0.5, 0.03, caption, ha='center', fontsize=16, bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
+            except Exception:
+                pass
+
+        plt.tight_layout(rect=[0, 0.05, 1, 1])
+
+        if save_dir is not None:
+            os.makedirs(save_dir, exist_ok=True)
+            # Hash the path to create a stable unique filename
+            try:
+                path_str = json.dumps(path, sort_keys=True)
+            except Exception:
+                path_str = repr(path)
+            hash_digest = hashlib.md5(path_str.encode()).hexdigest()[:10]
+
+            # Try to extract HopCount and Integrity from objectives if provided; otherwise compute from G
+            hop_val = None
+            int_val = None
+            try:
+                if objectives is not None and attribute_names is not None:
+                    # attribute_names expected to be list like EDGE_ATTRIBUTES + NODE_ATTRIBUTES
+                    if 'HopCount' in attribute_names:
+                        hi = attribute_names.index('HopCount')
+                        hop_val = objectives[hi]
+                    if 'Integrity' in attribute_names:
+                        ii = attribute_names.index('Integrity')
+                        int_val = objectives[ii]
+                # fallback to computing from graph
+                if hop_val is None:
+                    hop_val = 0
+                    if path and len(path) > 1:
+                        for u, v in zip(path[:-1], path[1:]):
+                            val = G[u][v].get('HopCount', 1)
+                            if hasattr(val, 'value'):
+                                val = val.value
+                            hop_val += val
+                if int_val is None:
+                    int_val = 0
+                    for n in (path or []):
+                        val = G.nodes[n].get('Integrity', 0)
+                        if hasattr(val, 'value'):
+                            val = val.value
+                        int_val += val
+            except Exception:
+                hop_val = None
+                int_val = None
+
+            hop_str = f"hop{str(hop_val).replace(' ', '')}" if hop_val is not None else "hopNA"
+            int_str = f"int{str(int_val).replace(' ', '')}" if int_val is not None else "intNA"
+
+            filename = f"graph_with_path_{str(ingress).replace(' ', '')}_{str(egress).replace(' ', '')}_{idx+1}_{hop_str}_{int_str}.png"
+            plt.savefig(os.path.join(save_dir, filename), format='png')
+            plt.close()
+        else:
+            plt.show()
 
 def plot_sa_objective_history(history, edge_attributes, node_attributes, save_dir, pair_name=None):
     """Plot accepted SA solutions as a scatter: x=HopCount (minimize), y=Integrity (maximize).

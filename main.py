@@ -1,5 +1,6 @@
 import networkx as nx
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 from enum import Enum
 import os
 from datetime import datetime
@@ -8,11 +9,8 @@ from optimizer import backtrack,refine
 from optimizer.simulated_annealing import SimulatedAnnealing
 from graph import grid,utility
 
-
 # Graph Hyper Parameters
 dim=(15, 15)          # Graph Dimension, example 5*5 2d graph
-ingress=(0,0)       # Ingress node, (x,y)
-egress=(14,14)        # Egress node, (x,y)
 
 # SA Hyper Parameters
 cooling_rate=0.99
@@ -66,12 +64,11 @@ for idx, (ingress, egress) in enumerate(ingress_egress_pairs):
         print(f"  Path {pidx+1}: {path}")
         print(f"    Objectives: {dict(zip(EDGE_ATTRIBUTES + NODE_ATTRIBUTES, objectives))}")
 
-    color_map = {}
-    colors = ['red', 'blue', 'yellow', 'green', 'purple', 'orange', 'cyan', 'magenta']
-    for pidx, (path, _) in enumerate(pareto_front):
-        color = colors[pidx % len(colors)]
-        color_map.setdefault(color, []).append(path)
-    utility.draw_path_in_graph(G, color_map, ingress, egress, save_dir=plot_dir)
+    all_paths = [(path, objectives) for path, objectives in pareto_front]
+
+    # Pass attribute names so the drawing utility can format objectives in captions
+    attribute_names = EDGE_ATTRIBUTES + NODE_ATTRIBUTES
+    utility.draw_path_in_graph(G, all_paths, ingress, egress, save_dir=plot_dir, attribute_names=attribute_names)
     # Also plot Pareto front overlay with SA accepted-solution history
     try:
         utility.plot_pareto_and_history(G, pareto_front, solutions, plot_dir, pair_name=f"{ingress}_{egress}")
